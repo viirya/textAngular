@@ -117,7 +117,7 @@ console.log("My new html is: "+newHTML);
 });
 
 */
-var textAngular = angular.module('textAngular', []);
+var textAngular = angular.module('textAngular', ['ngResource']);
 
 textAngular.directive('compile', function ($compile) {
     // directive factory creates a link function
@@ -127,6 +127,7 @@ textAngular.directive('compile', function ($compile) {
                 return scope.$eval(attrs.compile);
             },
             function (value) {
+                console.log(value);
                 element.html(value);
                 $compile(element.contents())(scope);
             }
@@ -135,8 +136,18 @@ textAngular.directive('compile', function ($compile) {
 });
 
 
-textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout) {
+textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout, $resource) {
+
     var methods = {
+        parse_by_service: function(scope, query) {
+            var markdownParser = $resource('http://localhost:8080/api');
+ 
+            var parsed_result = markdownParser.save({
+              markdownstr: query
+            }, function() {
+                methods.compileHtml(scope, parsed_result['html']);
+            });
+        },
         theme: function (scope, opts) {
             if (opts.disableStyle) {
                 return false;
@@ -199,69 +210,74 @@ textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout
             } : scope.theme.insertFormBtn;
         },
         compileHtml: function (scope, html) {
+            console.log(html);
             var compHtml = $("<div>").append(html).html().replace(/(class="(.*?)")|(class='(.*?)')/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/style=("|')(.*?)("|')/g, "");
-            if (scope.showHtml == "load") {
+            if (scope.showMark == "load") {
                 scope.textAngularModel.text = $sce.trustAsHtml(compHtml);
-                scope.textAngularModel.html = $sce.trustAsHtml(compHtml.replace(/</g, "&lt;"));
-                scope.showHtml = (scope.showHtmlDefault || false);
-            } else if (scope.showHtml) {
+                scope.showMark = (scope.showMarkDefault || false);
+            } else if (!scope.showMark) {
+                // WYSIWYG view
                 scope.textAngularModel.text = $sce.trustAsHtml(compHtml);
-            } else {
-                scope.textAngularModel.html = $sce.trustAsHtml(compHtml.replace(/</g, "&lt;"));
             }
-            scope.$parent.textAngularOpts.textAngularEditors[scope.name]["html"] = compHtml;
         },
         //wraps the selection in the provided tag
         wrapSelection: function (command, opt) {
             document.execCommand(command, false, opt);
         },
-        preCompileHtml: function (scope, el) {
-            if (scope.showHtml) {
-                var ht = $(el).find('.textAngular-html').html();
-            } else {
-                var ht = $(el).find('.textAngular-text').html();
-            }
-            methods.compileHtml(scope, ht);
-        },
         toolbarFn: {
-            html: function (scope, el) {
-                scope.showHtml = !scope.showHtml;
-                if (scope.showHtml) {
-                    var ht = $(el).find('.textAngular-text').html();
+            mark: function (scope, el) {
+                scope.showMark = !scope.showMark;
+                if (scope.showMark) {
+                    var md = $(el).find('.textAngular-text').html();
                     $timeout(function () { //hacky!
-                        $(el).find('.textAngular-html').focus();
+                        $(el).find('.textAngular-mark').focus();
                     }, 100)
                 } else {
-                    var ht = $(el).find('.textAngular-html').html();
+                    var md = $(el).find('.textAngular-mark').val();
                     $timeout(function () { //hacky! but works!
                         $(el).find('.textAngular-text').focus();
                     }, 100);
                 }
-                methods.compileHtml(scope, ht);
+                console.log("toolbarFn");
+                if (!scope.showMark)
+                    methods.parse_by_service(scope, md);
+                //methods.compileHtml(scope, ht);
             },
             h1: function (scope) {
-                methods.wrapSelection("formatBlock", "<H1>");
+                methods.wrapSelection("insertText", "#text\n");
             },
             h2: function (scope) {
-                methods.wrapSelection("formatBlock", "<H2>");
+                methods.wrapSelection("insertText", "##text\n");
             },
             h3: function (scope) {
-                methods.wrapSelection("formatBlock", "<H3>");
+                methods.wrapSelection("insertText", "###text\n");
             },
             p: function (scope) {
-                methods.wrapSelection("formatBlock", "<P>");
+                methods.wrapSelection("insertText", "\n");
             },
-            pre: function (scope) {
-                methods.wrapSelection("formatBlock", "<PRE>");
+            code: function (scope) {
+                methods.wrapSelection("insertText",
+                ["\n     code",
+                 "     code",
+                 "     code\n\n"].join("\n")
+                );
             },
             ul: function (scope) {
-                methods.wrapSelection("insertUnorderedList", null);
+                methods.wrapSelection("insertText",
+                ["\n* item",
+                 "* item",
+                 "* item\n\n"].join("\n")
+                );
             },
             ol: function (scope) {
-                methods.wrapSelection("insertOrderedList", null);
+                methods.wrapSelection("insertText",
+                ["\n1. item",
+                 "2. item",
+                 "3. item\n\n"].join("\n")
+                );
             },
             quote: function (scope) {
-                methods.wrapSelection("formatBlock", "<BLOCKQUOTE>");
+                methods.wrapSelection("insertText", "<BLOCKQUOTE>");
             },
             undo: function (scope) {
                 methods.wrapSelection("undo", null);
@@ -328,8 +344,8 @@ textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout
         template: "<div class='textAngular-root' style='text-align:right;'>\
 <div class='textAngular-toolbar' ng-style='theme.toolbar'><span ng-repeat='toolbarItem in toolbar' title='{{toolbarItem.title}}' class='textAngular-toolbar-item' ng-style='theme.toolbarItems' ng-mousedown='runToolbar(toolbarItem.name,$event)' unselectable='on' compile='toolbarItem.icon' name='toolbarItem.name'></span></div>\
 <form class='textAngular-insert' ng-show='inserting' ng-style='theme.insertForm'><input type='text' ng-model='insert.model' required><div class='textAngular-insert-submit'><button ng-style='theme.insertFormBtn' ng-mousedown='finishInsert();'>{{insert.text}}</button></div></form>\
-<pre contentEditable='true' ng-show='showHtml' class='textAngular-html' ng-style='theme.editor' ng-bind-html='textAngularModel.html' ></pre>\
-<div contentEditable='true' ng-hide='showHtml' class='textAngular-text' ng-style='theme.editor' ng-bind-html='textAngularModel.text' ></div>\
+<textarea ng-show='showMark' class='textAngular-mark' ng-style='theme.editor' ng-bind='textAngularModel.mark' style='display: block; width: 100%'></textarea>\
+<div contentEditable='true' ng-hide='showMark' class='textAngular-text' ng-style='theme.editor' ng-bind-html='textAngularModel.text' ></div>\
 </div>",
         replace: true,
         scope: {},
@@ -339,15 +355,15 @@ textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout
             $scope.insert = {};
             $scope.finishInsert = function () {
                 methods.wrapSelection($scope.currentInsert, $scope.insert.model);
-                methods.preCompileHtml($scope, $element);
                 $scope.inserting = false;
             }
 
             $scope.runToolbar = function (name, $event) {
                 $event.preventDefault();
-                var wd = methods.toolbarFn[name]($scope, $element);
-                if (name == "html") return;
-                methods.preCompileHtml($scope, $element);
+                if (name == "mark" || $scope.showMark)
+                    var wd = methods.toolbarFn[name]($scope, $element);
+                    if (name != "mark")
+                        methods.parse_by_service($scope, $scope.textAngularModel.mark);
             }
         },
         link: function (scope, el, attr) {
@@ -355,7 +371,7 @@ textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout
                 if ( !! !scope.$parent.textAngularOpts) {
                     console.log("No textAngularOpts config object found in scope! Please create one!");
                 }
-                scope.showHtml = "load"; //first state for updating boths
+                scope.showMark = "load"; //first state for updating boths
                 if ( !! !attr.textAngularName) {
                     console.log("No 'text-angular-name' directive found on directve root element. Please add one! ");
                     return false;
@@ -373,27 +389,21 @@ textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout
                     var opts = scope.$parent.textAngularOpts.textAngularEditors[name];
                     scope.toolbar = scope.$parent.textAngularOpts.textAngularEditors[name].toolbar; //go through each toolbar item and find matches against whats configured in the opts
                 }
-                scope.$parent.$watch('textAngularOpts.textAngularEditors["' + name + '"].html', function (oldVal, newVal) {
+                scope.$parent.$watch('textAngularOpts.textAngularEditors["' + name + '"].mark', function (oldVal, newVal) {
                     if ( !! !$(':focus').parents('.textAngular-root')[0]) { //if our root isn't focused, we need to update the model. 
-                        scope.textAngularModel.text = $sce.trustAsHtml(newVal);
-                        scope.textAngularModel.html = $sce.trustAsHtml(newVal.replace(/</g, "&lt;"));
+                        scope.textAngularModel.mark = newVal;
                     }
                 }, true);
                 methods.theme(scope, opts);
 
                 scope.textAngularModel = {};
-                methods.compileHtml(scope, opts.html);
+                scope.textAngularModel.mark = opts.mark;
+                methods.parse_by_service(scope, opts.mark);
 
-                $(el).find('.textAngular-text,.textAngular-html').on('keyup', function (e) {
-                    if (scope.showHtml) {
-                        var ht = $(this.parentNode).find('.textAngular-html').html();
-                    } else {
-                        var ht = $(this.parentNode).find('.textAngular-text').html();
-                    }
-
-                    scope.$apply(methods.preCompileHtml(scope, this.parentNode));
-
-
+                $(el).find('.textAngular-mark').on('keyup', function (e) {
+                    var ht = $(this.parentNode).find('.textAngular-mark').val();
+                    console.log(ht);
+                    scope.textAngularModel.mark = ht;
                 });
             });
         }
