@@ -219,6 +219,7 @@ textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout
                 // WYSIWYG view
                 scope.textAngularModel.text = $sce.trustAsHtml(compHtml);
             }
+            scope.$parent.textAngularOpts.textAngularEditors[scope.name]["html"] = compHtml;
         },
         //wraps the selection in the provided tag
         wrapSelection: function (command, opt) {
