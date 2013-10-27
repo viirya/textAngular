@@ -1,14 +1,29 @@
-textAngular
+textAngular for Markdown Syntax
 ===========
 
-http://www.textangular.com
+This project forks [textAngular](http://www.textangular.com) to support [Markdown](http://daringfireball.net/projects/markdown/syntax) syntax.
 
 ###Requirements
 
 1. jQuery
 2. $sce service for icon HTML ("on" by default with Angular 1.2.x)
+3. Node.js (for backend API that parses Markdown document)
 
 ##How to Use:
+
+### Backend API server
+
+#### Install dependencies
+
+    npm install
+
+#### Run backend API
+
+    node api.js # listen in port 8080
+
+### textAngular client
+
+Note: remember to modify backend API URL in ```textAngular.js```.
 
 1. Include ```textAngular.js``` in your project, alternatively grab all this code and throw it in your "```directives.js```" module file.
 2. Include ``textAngular`` in your main app module.
