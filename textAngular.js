@@ -210,7 +210,6 @@ textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout
             } : scope.theme.insertFormBtn;
         },
         compileHtml: function (scope, html) {
-            console.log(html);
             var compHtml = $("<div>").append(html).html().replace(/(class="(.*?)")|(class='(.*?)')/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/style=("|')(.*?)("|')/g, "");
             if (scope.showMark == "load") {
                 scope.textAngularModel.text = $sce.trustAsHtml(compHtml);
@@ -239,10 +238,8 @@ textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout
                         $(el).find('.textAngular-text').focus();
                     }, 100);
                 }
-                console.log("toolbarFn");
                 if (!scope.showMark)
                     methods.parse_by_service(scope, md);
-                //methods.compileHtml(scope, ht);
             },
             h1: function (scope) {
                 methods.wrapSelection("insertText", "#text\n");
@@ -287,7 +284,7 @@ textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout
                 methods.wrapSelection("redo", null);
             },
             b: function (scope) {
-                methods.wrapSelection("bold", null);
+                methods.wrapSelection("insertText", "**text**");
             },
             justifyLeft: function (scope) {
                 methods.wrapSelection("justifyLeft", null);
@@ -299,7 +296,7 @@ textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout
                 methods.wrapSelection("justifyCenter", null);
             },
             i: function (scope) {
-                methods.wrapSelection("italic", null);
+                methods.wrapSelection("insertText", "*text*");
             },
             clear: function (scope) {
                 methods.wrapSelection("FormatBlock", "<div>");
@@ -345,7 +342,7 @@ textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout
         template: "<div class='textAngular-root' style='text-align:right;'>\
 <div class='textAngular-toolbar' ng-style='theme.toolbar'><span ng-repeat='toolbarItem in toolbar' title='{{toolbarItem.title}}' class='textAngular-toolbar-item' ng-style='theme.toolbarItems' ng-mousedown='runToolbar(toolbarItem.name,$event)' unselectable='on' compile='toolbarItem.icon' name='toolbarItem.name'></span></div>\
 <form class='textAngular-insert' ng-show='inserting' ng-style='theme.insertForm'><input type='text' ng-model='insert.model' required><div class='textAngular-insert-submit'><button ng-style='theme.insertFormBtn' ng-mousedown='finishInsert();'>{{insert.text}}</button></div></form>\
-<textarea ng-show='showMark' class='textAngular-mark' ng-style='theme.editor' ng-bind='textAngularModel.mark' style='display: block; width: 100%'></textarea>\
+<textarea ng-show='showMark' class='textAngular-mark' ng-style='theme.editor' ng-model='textAngularModel.mark' style='display: block; width: 100%'></textarea>\
 <div contentEditable='true' ng-hide='showMark' class='textAngular-text' ng-style='theme.editor' ng-bind-html='textAngularModel.text' ></div>\
 </div>",
         replace: true,
@@ -361,10 +358,13 @@ textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout
 
             $scope.runToolbar = function (name, $event) {
                 $event.preventDefault();
-                if (name == "mark" || $scope.showMark)
-                    var wd = methods.toolbarFn[name]($scope, $element);
-                    if (name != "mark")
-                        methods.parse_by_service($scope, $scope.textAngularModel.mark);
+                setTimeout(function () { // hack to prevent $apply in $apply error
+                    if (name == "mark" || $scope.showMark)
+                        $($element).find('.textAngular-mark').focus();
+                        var wd = methods.toolbarFn[name]($scope, $element);
+                        if (name != "mark")
+                            methods.parse_by_service($scope, $scope.textAngularModel.mark);
+                }, 50);
             }
         },
         link: function (scope, el, attr) {
@@ -401,11 +401,6 @@ textAngular.directive('textAngular', function ($compile, $sce, $window, $timeout
                 scope.textAngularModel.mark = opts.mark;
                 methods.parse_by_service(scope, opts.mark);
 
-                $(el).find('.textAngular-mark').on('keyup', function (e) {
-                    var ht = $(this.parentNode).find('.textAngular-mark').val();
-                    console.log(ht);
-                    scope.textAngularModel.mark = ht;
-                });
             });
         }
 
